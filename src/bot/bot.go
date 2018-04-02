@@ -5,17 +5,40 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"../config"
 )
+
+var asked bool
 
 func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
 	for update := range updates {
+
+		fmt.Println(update.Message)
+
 		if update.Message != nil {
 			cmd := update.Message.Command()
 
 			if cmd == "" {
-				fmt.Println(update.Message)
+				if asked {
+					channelId, err := strconv.ParseInt(config.Toml.Bot.ChannelId, 10, 64);
 
-				//для обычных сообщений
+					if err != nil {
+						fmt.Println(err)
+					}
+
+					msg := tgbotapi.NewForward(channelId, update.Message.Chat.ID, update.Message.MessageID)
+
+					bot.Send(msg)
+
+					confirmMsg := newMessage(
+						update.Message.Chat.ID,
+						"<b>Ваш вопрос принят!</b>",
+						"html")
+
+					bot.Send(confirmMsg)
+
+					asked = false
+				}
 			} else {
 				switch cmd {
 				case "start", "menu":
@@ -67,6 +90,14 @@ func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
 
 					bot.Send(msg)
 				case "ask":
+					msg := newMessage(
+						update.CallbackQuery.Message.Chat.ID,
+						"<b>У вас есть вопрос? Задайте его спикерам</b>",
+						"html")
+
+					bot.Send(msg)
+
+					asked = true
 				case "faq":
 					msg := newMessage(update.CallbackQuery.Message.Chat.ID, "<b>Часто задаваемые вопросы:</b>", "html")
 

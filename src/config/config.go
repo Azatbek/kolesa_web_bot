@@ -12,16 +12,17 @@ type TomlConfig struct {
 
     Mysql struct {
         Host     string
-	Port     int
-	User     string
-	Password string
-	Database string
+		Port     int
+		User     string
+		Password string
+		Database string
     }
 
     Bot struct {
-	Token    string
-        Timeout  int
-        StartPic string
+		Token     string
+        Timeout   int
+        StartPic  string
+        ChannelId string
     }
 }
 
