@@ -1,10 +1,10 @@
-package src
+package main
 
 import (
-	"./db"
-	"./config"
-	"./handler"
-	"./bot"
+	"./src/db"
+	"./src/config"
+	"./src/handler"
+	"./src/bot"
 	"fmt"
 	"net/http"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -16,12 +16,12 @@ func main() {
     err := db.OpenConnection()
 
     if err != nil {
-	fmt.Println(err)
+		fmt.Println(err)
     }
     botApi, err := tgbotapi.NewBotAPI(config.Toml.Bot.Token)
 
     if err != nil {
-	fmt.Println("Bot connection failed")
+		fmt.Println("Bot connection failed")
     }
 
     botApi.Debug = true
@@ -32,8 +32,6 @@ func main() {
     updates, err := botApi.GetUpdatesChan(u)
 
     run()
-
-    fmt.Println("here")
 
     bot.ListenForUpdates(botApi, updates)
 }

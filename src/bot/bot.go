@@ -1,10 +1,10 @@
 package bot
 
 import (
-	"../config"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
@@ -13,28 +13,20 @@ func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
 			cmd := update.Message.Command()
 
 			if cmd == "" {
+				fmt.Println(update.Message)
+
 				//для обычных сообщений
 			} else {
 				switch cmd {
-				case "start":
-					msg := tgbotapi.NewPhotoShare(update.Message.Chat.ID, config.Toml.Bot.StartPic)
+				case "start", "menu":
+					msg := newMessage(update.Message.Chat.ID, "<b>Меню:</b>", "html")
 
 					keyboard := tgbotapi.InlineKeyboardMarkup{}
-					var row []tgbotapi.InlineKeyboardButton
-					btn := tgbotapi.NewInlineKeyboardButtonData("Play", "/play")
-					row = append(row, btn)
-					keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
-					msg.ReplyMarkup = keyboard
-					bot.Send(msg)
-				case "play":
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для начала выберите кем вы являетесь")
+					menu := getMenu()
 
-					keyboard := tgbotapi.InlineKeyboardMarkup{}
-					categories := getCategories()
-
-					for _, category := range categories {
+					for _, item := range menu {
 						var row []tgbotapi.InlineKeyboardButton
-						btn := tgbotapi.NewInlineKeyboardButtonData(category.Name, strconv.Itoa(category.Id))
+						btn := tgbotapi.NewInlineKeyboardButtonData(item.Name, item.Alias)
 						row = append(row, btn)
 						keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 					}
@@ -45,14 +37,66 @@ func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
 			}
 		} else {
 			if update.CallbackQuery != nil {
-				fmt.Println("here")
-				fmt.Println(update.CallbackQuery)
-				fmt.Println("here")
 
-				//category := update.CallbackQuery.Data
-				//categoriesMap[update.CallbackQuery.From.ID] = category
-				//bot.Send(tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Отлично, я запомнил"))
+				if (strings.Contains(update.CallbackQuery.Data, "faq_")) {
+					s := strings.Split(update.CallbackQuery.Data, "_")
+					id, err := strconv.Atoi(s[1])
+
+					if err != nil {
+						fmt.Println(err)
+					}
+
+					question := getQuestion(id)
+
+					msg := newMessage(
+						update.CallbackQuery.Message.Chat.ID,
+						"<b>" + question.Question + "</b>" + "\n\n" + question.Answer,
+						"html")
+
+					bot.Send(msg)
+				}
+
+				switch update.CallbackQuery.Data {
+				case "schedule":
+					schedule := getSchedule()
+
+					msg := newMessage(
+						update.CallbackQuery.Message.Chat.ID,
+						"<b>Расписание:</b>" + "\n\n" + schedule.Value,
+						"html")
+
+					bot.Send(msg)
+				case "ask":
+				case "faq":
+					msg := newMessage(update.CallbackQuery.Message.Chat.ID, "<b>Часто задаваемые вопросы:</b>", "html")
+
+					keyboard := tgbotapi.InlineKeyboardMarkup{}
+					questions := getFaq()
+
+
+					for _, item := range questions {
+						var row []tgbotapi.InlineKeyboardButton
+						btn := tgbotapi.NewInlineKeyboardButtonData(item.Question, "faq_" + strconv.Itoa(item.Id))
+						row = append(row, btn)
+						keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+					}
+
+					msg.ReplyMarkup = keyboard
+					bot.Send(msg)
+				}
 			}
 		}
+	}
+}
+
+func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {
+	return tgbotapi.MessageConfig{
+		BaseChat: tgbotapi.BaseChat{
+			ChatID:           chatId,
+			ReplyToMessageID: 0,
+		},
+		Text: text,
+		ParseMode: parseMode,
+		DisableWebPagePreview: false,
 	}
 }

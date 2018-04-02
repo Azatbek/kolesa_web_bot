@@ -28,7 +28,7 @@ type TomlConfig struct {
 var Toml TomlConfig
 
 func ReadConfigs() {
-    if _, err := toml.DecodeFile("config/config.toml", &Toml); err != nil {
+    if _, err := toml.DecodeFile("src/config/config.toml", &Toml); err != nil {
         fmt.Println("Could not read config file")
 	fmt.Println(err)
     }

@@ -9,8 +9,21 @@ import (
 )
 
 type Categories struct {
-	Id   int    `db:"id"`
-	Name string `db:"name"`
+	Id    int    `db:"id"`
+	Alias string `db:"alias"`
+	Name  string `db:"name"`
+}
+
+type Faq struct {
+	Id       int `db:"id"`
+	Question string `db:"question"`
+	Answer   string `db:"answer"`
+}
+
+type Settings struct {
+	Id    int    `db:"id"`
+	Alias string `db:"alias"`
+	Value string `db:"value"`
 }
 
 var db *sqlx.DB
@@ -46,14 +59,52 @@ func PingDb() error {
 	return err
 }
 
-func GetCategories() ([]Categories, error){
+func GetMenu() ([]Categories, error) {
 	result := []Categories {}
 
-	err := db.Select(&result, `SELECT * FROM categories`)
+	err := db.Select(&result, `SELECT * FROM menu`)
 
 	if err != nil {
 		return result, err
 	}
 
 	return result, nil
+}
+
+func GetFaq() ([]Faq, error) {
+	result := []Faq {}
+
+	err := db.Select(&result, "SELECT * FROM faq")
+
+	if err != nil {
+		return  result, err
+	}
+
+	return result, err
+}
+
+func GetQuestion(id int) (Faq, error) {
+	result := Faq{}
+
+	err := db.Get(&result, "SELECT * FROM faq WHERE id = ?", id)
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, err
+}
+
+func GetSchedule () (Settings, error) {
+	result := Settings{}
+
+	err := db.Get(&result, `SELECT * FROM settings WHERE alias = ?`, "schedule")
+
+	fmt.Println(err)
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, err
 }
