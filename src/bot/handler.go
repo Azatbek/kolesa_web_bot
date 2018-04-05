@@ -3,6 +3,7 @@ package bot
 import (
 	"../db"
 	"fmt"
+	"encoding/json"
 )
 
 func getMenu() []db.Menu {
@@ -55,4 +56,34 @@ func getRandQuestions() ([]db.Questions) {
 	}
 
 	return append(append(easy, medium...), hard...)
+}
+
+func newQuizRecord(quiz Quiz) {
+	logs, err := json.Marshal(quiz.Log)
+
+	if err != nil {
+		fmt.Println(logs)
+	}
+
+	recordErr := db.NewQuizRecord(db.Quiz{
+		User: quiz.User,
+		Score: quiz.Score,
+		Log: string(logs),
+		StartTime: quiz.StartTime,
+		EndTime: quiz.EndTime,
+	})
+
+	if recordErr != nil {
+		fmt.Println(recordErr)
+	}
+}
+
+func checkIfUserExists(user string) bool {
+	_, err := db.GetUserFromQuiz(user)
+
+	if err != nil {
+		return false
+	}
+
+	return true
 }

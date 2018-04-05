@@ -45,8 +45,8 @@ type Quiz struct {
 	User      string `db:"user"`
 	Score     int    `db:"score"`
 	Log       string `db:"log"`
-	StartTime string `db:"start_time"`
-	EndTime   string `db:"end_time"`
+	StartTime int64  `db:"start_time"`
+	EndTime   int64  `db:"end_time"`
 }
 
 var db *sqlx.DB
@@ -154,6 +154,32 @@ func GetVariants(id int) ([]Variants, error) {
 	result := []Variants{}
 
 	err := db.Select(&result, "SELECT * FROM variants WHERE question_id = ? ORDER BY RAND()", id)
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, err
+}
+
+func NewQuizRecord(quiz Quiz) error {
+	_, err := db.Exec(
+		"INSERT INTO `quiz` (`user`, `score`, `log`, `start_time`, `end_time`)"+
+			"VALUES (?, ?, ?, ?, ?)",
+		quiz.User,
+		quiz.Score,
+		quiz.Log,
+		quiz.StartTime,
+		quiz.EndTime,
+	)
+
+	return err
+}
+
+func GetUserFromQuiz(user string) (Quiz, error) {
+	result := Quiz{}
+
+	err := db.Get(&result, "SELECT * FROM quiz WHERE user = ?", user)
 
 	if err != nil {
 		return result, err
