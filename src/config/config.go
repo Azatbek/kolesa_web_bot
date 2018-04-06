@@ -21,7 +21,6 @@ type TomlConfig struct {
     Bot struct {
 		Token     string
         Timeout   int
-        StartPic  string
         ChannelId string
     }
 }
