@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	message   tgbotapi.Message
 	index     int
 	asked     bool
 	started   bool
@@ -113,7 +114,7 @@ func callbackQueryListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		bot.DeleteMessage(tgbotapi.DeleteMessageConfig{update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID})
 
 		if started {
-			bot.DeleteMessage(tgbotapi.DeleteMessageConfig{update.CallbackQuery.Message.Chat.ID, lastQId + 1})
+			bot.DeleteMessage(tgbotapi.DeleteMessageConfig{update.CallbackQuery.Message.Chat.ID, lastQId})
 		}
 
 		if checkIfUserExists(update.CallbackQuery.Message.Chat.UserName) {
@@ -213,7 +214,6 @@ func faqCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 
 func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 	callBackQuery := update.CallbackQuery
-	lastQId = callBackQuery.Message.MessageID
 	s := strings.Split(update.CallbackQuery.Data, "_")
 	i, err := strconv.Atoi(s[1])
 	id, err := strconv.Atoi(s[2])
@@ -223,8 +223,6 @@ func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 	}
 
 	logs = append(logs, Log{QuestionId: questions[index].Id, AnswerId: id})
-
-	bot.DeleteMessage(tgbotapi.DeleteMessageConfig{callBackQuery.Message.Chat.ID, callBackQuery.Message.MessageID})
 
 	if index == 0 {
 		quiz = Quiz{
@@ -261,9 +259,12 @@ func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		index++
 		newQuestionMessage(callBackQuery.Message.Chat.ID, bot)
 	}
+
+	bot.DeleteMessage(tgbotapi.DeleteMessageConfig{callBackQuery.Message.Chat.ID, callBackQuery.Message.MessageID})
 }
 
 func newQuestionMessage(chatId int64, bot tgbotapi.BotAPI) {
+	var err error
 	indexStr := strconv.Itoa(index + 1)
 	msg := newMessage(chatId, "<b>" + indexStr + ")</b> " + questions[index].Text, "html")
 
@@ -277,7 +278,13 @@ func newQuestionMessage(chatId int64, bot tgbotapi.BotAPI) {
 	}
 
 	msg.ReplyMarkup = keyboard
-	bot.Send(msg)
+	message, err = bot.Send(msg)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	lastQId = message.MessageID
 }
 
 func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {
