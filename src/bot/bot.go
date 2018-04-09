@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	message   tgbotapi.Message
 	index     int
 	asked     bool
 	started   bool
@@ -21,6 +20,12 @@ var (
 	logs      []Log
 	variants  []string
 )
+
+type BotApi struct {
+	BotApi  *tgbotapi.BotAPI
+	Updates tgbotapi.UpdatesChannel
+	Update  tgbotapi.Update
+}
 
 type Quiz struct {
 	User      string
@@ -35,52 +40,54 @@ type Log struct {
 	AnswerId   int
 }
 
-func ListenForUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel)  {
+func (bot *BotApi) ListenForUpdates()  {
 	variants = []string{"A) ", "B) ", "C) ", "D) "}
 
-	for update := range updates {
+	for update := range bot.Updates {
+		bot.Update = update
+
 		if update.Message != nil {
-			messageUpdateListener(update, *bot)
+			bot.messageUpdateListener()
 		} else {
 			if update.CallbackQuery != nil {
-				callbackQueryListener(update, *bot)
+				bot.callbackQueryListener()
 			}
 		}
 	}
 }
 
-func messageUpdateListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	if update.Message.Command() == "" {
-		messageListener(update, bot)
+func (bot *BotApi) messageUpdateListener()  {
+	if bot.Update.Message.Command() == "" {
+		bot.messageListener()
 	} else {
-		commandListener(update, bot)
+		bot.commandListener()
 	}
 }
 
-func callbackQueryListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	dynamicCallbackQuery(update, bot)
+func (bot *BotApi) callbackQueryListener()  {
+	bot.dynamicCallbackQuery()
 
-	switch update.CallbackQuery.Data {
+	switch bot.Update.CallbackQuery.Data {
 	case "schedule":
 		schedule := getSchedule()
 
 		msg := newMessage(
-			update.CallbackQuery.Message.Chat.ID,
+			bot.Update.CallbackQuery.Message.Chat.ID,
 			getText("schedule") + "\n\n" + schedule.Value,
 			"html")
 
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 	case "ask":
 		msg := newMessage(
-			update.CallbackQuery.Message.Chat.ID,
+			bot.Update.CallbackQuery.Message.Chat.ID,
 			getText("ask"),
 			"html")
 
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 
 		asked = true
 	case "faq":
-		msg := newMessage(update.CallbackQuery.Message.Chat.ID, getText("faq"), "html")
+		msg := newMessage(bot.Update.CallbackQuery.Message.Chat.ID, getText("faq"), "html")
 
 		keyboard := tgbotapi.InlineKeyboardMarkup{}
 		questions := getFaq()
@@ -94,10 +101,10 @@ func callbackQueryListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		}
 
 		msg.ReplyMarkup = keyboard
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 	case "test":
 		msg := newMessage(
-			update.CallbackQuery.Message.Chat.ID,
+			bot.Update.CallbackQuery.Message.Chat.ID,
 			getText("test"),
 			"html")
 
@@ -109,67 +116,67 @@ func callbackQueryListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 
 		msg.ReplyMarkup = keyboard
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 	case "startTest":
-		bot.DeleteMessage(tgbotapi.DeleteMessageConfig{update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID})
+		bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.Message.MessageID})
 
 		if started {
-			bot.DeleteMessage(tgbotapi.DeleteMessageConfig{update.CallbackQuery.Message.Chat.ID, lastQId})
+			bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{bot.Update.CallbackQuery.Message.Chat.ID, lastQId})
 		}
 
-		if checkIfUserExists(update.CallbackQuery.Message.Chat.UserName) {
+		if checkIfUserExists(bot.Update.CallbackQuery.Message.Chat.UserName) {
 			msg := newMessage(
-				update.CallbackQuery.Message.Chat.ID,
+				bot.Update.CallbackQuery.Message.Chat.ID,
 				getText("recorded"),
 				"html")
 
-			bot.Send(msg)
+			bot.BotApi.Send(msg)
 		} else {
 			index = 0
 			questions = getRandQuestions()
 			started = true
 
-			newQuestionMessage(update.CallbackQuery.Message.Chat.ID, bot)
+			bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID)
 		}
 	}
 }
 
-func messageListener(update tgbotapi.Update, bot tgbotapi.BotAPI) {
+func (bot *BotApi) messageListener() {
 	if started {
 		warningMessage := newMessage(
-			update.Message.Chat.ID,
+			bot.Update.Message.Chat.ID,
 			getText("continueTest"),
 			"html")
 
-		bot.Send(warningMessage)
+		bot.BotApi.Send(warningMessage)
 	}
 
-	if asked && update.Message.Text != "" {
+	if asked && bot.Update.Message.Text != "" {
 		channelId, err := strconv.ParseInt(config.Toml.Bot.ChannelId, 10, 64);
 
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		msg := tgbotapi.NewForward(channelId, update.Message.Chat.ID, update.Message.MessageID)
+		msg := tgbotapi.NewForward(channelId, bot.Update.Message.Chat.ID, bot.Update.Message.MessageID)
 
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 
 		confirmMsg := newMessage(
-			update.Message.Chat.ID,
+			bot.Update.Message.Chat.ID,
 			getText("confirmed"),
 			"html")
 
-		bot.Send(confirmMsg)
+		bot.BotApi.Send(confirmMsg)
 
 		asked = false
 	}
 }
 
-func commandListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	switch update.Message.Command() {
+func (bot *BotApi) commandListener()  {
+	switch bot.Update.Message.Command() {
 	case "start", "menu":
-		msg := newMessage(update.Message.Chat.ID, "<b>Меню:</b>", "html")
+		msg := newMessage(bot.Update.Message.Chat.ID, "<b>Меню:</b>", "html")
 
 		keyboard := tgbotapi.InlineKeyboardMarkup{}
 		menu := getMenu()
@@ -182,20 +189,20 @@ func commandListener(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		}
 
 		msg.ReplyMarkup = keyboard
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 	}
 }
 
-func dynamicCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	if strings.Contains(update.CallbackQuery.Data, "faq_") {
-		faqCallbackQuery(update, bot)
-	} else if strings.Contains(update.CallbackQuery.Data, "variant_") {
-		variantCallbackQuery(update, bot)
+func (bot *BotApi) dynamicCallbackQuery()  {
+	if strings.Contains(bot.Update.CallbackQuery.Data, "faq_") {
+		bot.faqCallbackQuery()
+	} else if strings.Contains(bot.Update.CallbackQuery.Data, "variant_") {
+		bot.variantCallbackQuery()
 	}
 }
 
-func faqCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	s := strings.Split(update.CallbackQuery.Data, "_")
+func (bot *BotApi) faqCallbackQuery()  {
+	s := strings.Split(bot.Update.CallbackQuery.Data, "_")
 	id, err := strconv.Atoi(s[1])
 
 	if err != nil {
@@ -205,16 +212,16 @@ func faqCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 	question := getQuestion(id)
 
 	msg := newMessage(
-		update.CallbackQuery.Message.Chat.ID,
+		bot.Update.CallbackQuery.Message.Chat.ID,
 		"<b>" + question.Question + "</b>" + "\n\n" + question.Answer,
 		"html")
 
-	bot.Send(msg)
+	bot.BotApi.Send(msg)
 }
 
-func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
-	callBackQuery := update.CallbackQuery
-	s := strings.Split(update.CallbackQuery.Data, "_")
+func (bot *BotApi) variantCallbackQuery() {
+	callBackQuery := bot.Update.CallbackQuery
+	s := strings.Split(bot.Update.CallbackQuery.Data, "_")
 	i, err := strconv.Atoi(s[1])
 	id, err := strconv.Atoi(s[2])
 
@@ -232,7 +239,7 @@ func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 		}
 
 		index++
-		newQuestionMessage(callBackQuery.Message.Chat.ID, bot)
+		bot.newQuestionMessage(callBackQuery.Message.Chat.ID)
 	} else if index == 5 {
 		quiz.Log = logs
 		quiz.Score += questions[index].Variants[i].Value
@@ -252,18 +259,18 @@ func variantCallbackQuery(update tgbotapi.Update, bot tgbotapi.BotAPI)  {
 			getText("score") + scoreStr + "</b>",
 			"html")
 
-		bot.Send(msg)
+		bot.BotApi.Send(msg)
 	} else {
 		quiz.Score += questions[index].Variants[i].Value
 
 		index++
-		newQuestionMessage(callBackQuery.Message.Chat.ID, bot)
+		bot.newQuestionMessage(callBackQuery.Message.Chat.ID)
 	}
 
-	bot.DeleteMessage(tgbotapi.DeleteMessageConfig{callBackQuery.Message.Chat.ID, callBackQuery.Message.MessageID})
+	bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{callBackQuery.Message.Chat.ID, callBackQuery.Message.MessageID})
 }
 
-func newQuestionMessage(chatId int64, bot tgbotapi.BotAPI) {
+func (bot *BotApi) newQuestionMessage(chatId int64) {
 	var err error
 	indexStr := strconv.Itoa(index + 1)
 	msg := newMessage(chatId, "<b>" + indexStr + ")</b> " + questions[index].Text, "html")
@@ -278,7 +285,7 @@ func newQuestionMessage(chatId int64, bot tgbotapi.BotAPI) {
 	}
 
 	msg.ReplyMarkup = keyboard
-	message, err = bot.Send(msg)
+	message, err := bot.BotApi.Send(msg)
 
 	if err != nil {
 		fmt.Println(err)

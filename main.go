@@ -4,7 +4,7 @@ import (
 	"./src/db"
 	"./src/config"
 	"./src/handler"
-	"./src/bot"
+	botPkg "./src/bot"
 	"fmt"
 	"net/http"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -18,6 +18,7 @@ func main() {
     if err != nil {
 		fmt.Println(err)
     }
+
     botApi, err := tgbotapi.NewBotAPI(config.Toml.Bot.Token)
 
     if err != nil {
@@ -33,7 +34,8 @@ func main() {
 
     run()
 
-    bot.ListenForUpdates(botApi, updates)
+	bot := botPkg.BotApi{botApi, updates, tgbotapi.Update{}}
+	bot.ListenForUpdates()
 }
 
 func run()  {
