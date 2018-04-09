@@ -58,7 +58,7 @@ func getRandQuestions() ([]db.Questions) {
 	return append(append(easy, medium...), hard...)
 }
 
-func newQuizRecord(quiz Quiz) {
+func newQuizRecord(quiz Quiz) error {
 	logs, err := json.Marshal(quiz.Log)
 
 	if err != nil {
@@ -73,9 +73,7 @@ func newQuizRecord(quiz Quiz) {
 		EndTime: quiz.EndTime,
 	})
 
-	if recordErr != nil {
-		fmt.Println(recordErr)
-	}
+	return recordErr
 }
 
 func checkIfUserExists(user string) bool {
