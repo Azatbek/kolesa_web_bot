@@ -58,7 +58,7 @@ func getRandQuestions() ([]db.Questions) {
 	return append(append(easy, medium...), hard...)
 }
 
-func newQuizRecord(quiz Quiz) error {
+func newQuizRecord(quiz *Quiz) error {
 	logs, err := json.Marshal(quiz.Log)
 
 	if err != nil {

@@ -13,8 +13,9 @@ import (
 var (
 	asked    bool
 	variants []string
-	Chats    map[string]Quiz
 )
+
+var Chats = map[string]*Quiz{}
 
 type BotApi struct {
 	BotApi  *tgbotapi.BotAPI
@@ -131,8 +132,7 @@ func (bot *BotApi) callbackQueryListener()  {
 			bot.BotApi.Send(msg)
 		} else {
 			if !isExist(bot.Update.CallbackQuery.Message.Chat.UserName) {
-				Chats := make(map[string]Quiz)
-				Chats[bot.Update.CallbackQuery.Message.Chat.UserName] = Quiz{
+				Chats[bot.Update.CallbackQuery.Message.Chat.UserName] = &Quiz{
 					bot.Update.CallbackQuery.Message.Chat.UserName,
 					0,
 					0,
@@ -232,31 +232,32 @@ func (bot *BotApi) variantCallbackQuery() {
 	s := strings.Split(bot.Update.CallbackQuery.Data, "_")
 	i, err := strconv.Atoi(s[1])
 	id, err := strconv.Atoi(s[2])
-	chat := Chats[callBackQuery.Message.Chat.UserName]
+	user := callBackQuery.Message.Chat.UserName
 
 	if err != nil {
 		fmt.Println(err)
 	}
 
+	Chats[user].Log = append(Chats[user].Log, Log{QuestionId: Chats[user].Questions[Chats[user].Index].Id, AnswerId: id})
+	Chats[user].Score += Chats[user].Questions[Chats[user].Index].Variants[i].Value
 
-	chat.Log = append(chat.Log, Log{QuestionId: chat.Questions[chat.Index].Id, AnswerId: id})
-	chat.Score += chat.Questions[chat.Index].Variants[i].Value
-
-	if chat.Index == 0 {
-		chat.Score = chat.Questions[chat.Index].Variants[i].Value
-		chat.Index++
+	if Chats[user].Index == 0 {
+		Chats[user].Score = Chats[user].Questions[Chats[user].Index].Variants[i].Value
+		Chats[user].Index += 1
 
 		bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.Message.Chat.UserName)
-	} else if chat.Index == 5 {
-		chat.EndTime = time.Now().Unix()
+	} else if Chats[user].Index == 5 {
+		Chats[user].EndTime = time.Now().Unix()
 
-		scoreStr := strconv.Itoa(chat.Score)
+		scoreStr := strconv.Itoa(Chats[user].Score)
+
+		Chats[callBackQuery.Message.Chat.UserName] = Chats[user]
 
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		if newQuizRecord(chat) == nil {
+		if newQuizRecord(Chats[user]) == nil {
 			delete(Chats, callBackQuery.Message.Chat.UserName)
 		}
 
@@ -267,7 +268,8 @@ func (bot *BotApi) variantCallbackQuery() {
 
 		bot.BotApi.Send(msg)
 	} else {
-		chat.Index++
+		Chats[user].Index += 1
+
 		bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.Message.Chat.UserName)
 	}
 
@@ -276,14 +278,15 @@ func (bot *BotApi) variantCallbackQuery() {
 
 func (bot *BotApi) newQuestionMessage(chatId int64, userName string) {
 	var err error
-	chat := Chats[userName]
-	indexStr := strconv.Itoa(chat.Index + 1)
-	msg := newMessage(chatId, "<b>" + indexStr + ")</b> " + chat.Questions[chat.Index].Text, "html")
+
+	indexStr := strconv.Itoa(Chats[userName].Index + 1)
+	msg := newMessage(chatId, "<b>" + indexStr + ")</b> " + Chats[userName].Questions[Chats[userName].Index].Text, "html")
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 
-	for i, item := range chat.Questions[chat.Index].Variants {
+	for i, item := range Chats[userName].Questions[Chats[userName].Index].Variants {
 		var row []tgbotapi.InlineKeyboardButton
+
 		btn := tgbotapi.NewInlineKeyboardButtonData(variants[i] + item.Text, "variant_" + strconv.Itoa(i) + "_" + strconv.Itoa(item.Id))
 		row = append(row, btn)
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
@@ -296,7 +299,7 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userName string) {
 		fmt.Println(err)
 	}
 
-	chat.LastMsgId = message.MessageID
+	Chats[userName].LastMsgId = message.MessageID
 }
 
 func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {
