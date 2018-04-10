@@ -39,7 +39,7 @@ type Log struct {
 }
 
 func (bot *BotApi) ListenForUpdates()  {
-	variants = []string{"A) ", "B) ", "C) ", "D) "}
+	variants = []string{"A", "B", "C", "D"}
 
 	for update := range bot.Updates {
 		bot.Update = update
@@ -67,89 +67,15 @@ func (bot *BotApi) callbackQueryListener()  {
 
 	switch bot.Update.CallbackQuery.Data {
 	case "schedule":
-		schedule := getSchedule()
-
-		msg := newMessage(
-			bot.Update.CallbackQuery.Message.Chat.ID,
-			getText("schedule") + "\n\n" + schedule.Value,
-			"html")
-
-		bot.BotApi.Send(msg)
+		bot.sendSchedule()
 	case "ask":
-		msg := newMessage(
-			bot.Update.CallbackQuery.Message.Chat.ID,
-			getText("ask"),
-			"html")
-
-		bot.BotApi.Send(msg)
-
-		asked = true
+		bot.sendAskSpeakerMsg()
 	case "faq":
-		msg := newMessage(bot.Update.CallbackQuery.Message.Chat.ID, getText("faq"), "html")
-
-		keyboard := tgbotapi.InlineKeyboardMarkup{}
-		questions := getFaq()
-
-
-		for _, item := range questions {
-			var row []tgbotapi.InlineKeyboardButton
-			btn := tgbotapi.NewInlineKeyboardButtonData(item.Question, "faq_" + strconv.Itoa(item.Id))
-			row = append(row, btn)
-			keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
-		}
-
-		msg.ReplyMarkup = keyboard
-		bot.BotApi.Send(msg)
+		bot.sendFaqMsg()
 	case "test":
-		msg := newMessage(
-			bot.Update.CallbackQuery.Message.Chat.ID,
-			getText("test"),
-			"html")
-
-		keyboard := tgbotapi.InlineKeyboardMarkup{}
-
-		var row []tgbotapi.InlineKeyboardButton
-		btn := tgbotapi.NewInlineKeyboardButtonData(getText("startTest") + " " + getEmoji("right-arrow"), "startTest")
-		row = append(row, btn)
-		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
-
-		msg.ReplyMarkup = keyboard
-		bot.BotApi.Send(msg)
+		bot.sendAboutTestMsg()
 	case "startTest":
-		bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.Message.MessageID})
-
-		if isExist(bot.Update.CallbackQuery.From.ID) {
-			bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{
-				bot.Update.CallbackQuery.Message.Chat.ID,
-				Chats[bot.Update.CallbackQuery.From.ID].LastMsgId,
-				})
-		}
-
-		if checkIfUserExists(bot.Update.CallbackQuery.From.ID) {
-			msg := newMessage(
-				bot.Update.CallbackQuery.Message.Chat.ID,
-				getText("recorded"),
-				"html")
-
-			bot.BotApi.Send(msg)
-		} else {
-			if !isExist(bot.Update.CallbackQuery.From.ID) {
-				Chats[bot.Update.CallbackQuery.From.ID] = &Quiz{
-					bot.Update.CallbackQuery.From.ID,
-					bot.Update.CallbackQuery.From.UserName,
-					bot.Update.CallbackQuery.Message.Chat.ID,
-					0,
-					0,
-					0,
-					getRandQuestions(),
-					time.Now().Unix(),
-					0,
-					[]Log{},
-				}
-			}
-
-			bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
-		}
+		bot.sendStartTest()
 	}
 }
 
@@ -267,7 +193,7 @@ func (bot *BotApi) variantCallbackQuery() {
 
 		msg := newMessage(
 			callBackQuery.Message.Chat.ID,
-			getText("score") + scoreStr + "</b>",
+			getText("score") + scoreStr + " очков",
 			"html")
 
 		bot.BotApi.Send(msg)
@@ -284,17 +210,21 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
 	var err error
 
 	indexStr := strconv.Itoa(Chats[userId].Index + 1)
-	msg := newMessage(chatId, "<b>" + indexStr + ")</b> " + Chats[userId].Questions[Chats[userId].Index].Text, "html")
+	questionText := "<b>" + indexStr + ")</b> " + Chats[userId].Questions[Chats[userId].Index].Text + "\n\n"
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
+	var row []tgbotapi.InlineKeyboardButton
 
 	for i, item := range Chats[userId].Questions[Chats[userId].Index].Variants {
-		var row []tgbotapi.InlineKeyboardButton
-
-		btn := tgbotapi.NewInlineKeyboardButtonData(variants[i] + item.Text, "variant_" + strconv.Itoa(i) + "_" + strconv.Itoa(item.Id))
+		btn := tgbotapi.NewInlineKeyboardButtonData(variants[i], "variant_" + strconv.Itoa(i) + "_" + strconv.Itoa(item.Id))
 		row = append(row, btn)
-		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+
+		questionText += variants[i] + ") " + item.Text + "\n"
 	}
+
+	msg := newMessage(chatId,  questionText, "html")
+
+	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 
 	msg.ReplyMarkup = keyboard
 	message, err := bot.BotApi.Send(msg)
@@ -304,6 +234,100 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
 	}
 
 	Chats[userId].LastMsgId = message.MessageID
+}
+
+func (bot *BotApi) sendSchedule()  {
+	schedule := getSchedule()
+
+	msg := newMessage(
+		bot.Update.CallbackQuery.Message.Chat.ID,
+		getText("schedule") + "\n\n" + schedule.Value,
+		"html")
+
+	bot.BotApi.Send(msg)
+}
+
+func (bot *BotApi) sendAskSpeakerMsg() {
+	msg := newMessage(
+		bot.Update.CallbackQuery.Message.Chat.ID,
+		getText("ask"),
+		"html")
+
+	bot.BotApi.Send(msg)
+
+	asked = true
+}
+
+func (bot *BotApi) sendFaqMsg() {
+	msg := newMessage(bot.Update.CallbackQuery.Message.Chat.ID, getText("faq"), "html")
+
+	keyboard := tgbotapi.InlineKeyboardMarkup{}
+	questions := getFaq()
+
+
+	for _, item := range questions {
+		var row []tgbotapi.InlineKeyboardButton
+		btn := tgbotapi.NewInlineKeyboardButtonData(item.Question, "faq_" + strconv.Itoa(item.Id))
+		row = append(row, btn)
+		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+	}
+
+	msg.ReplyMarkup = keyboard
+	bot.BotApi.Send(msg)
+}
+
+func (bot *BotApi) sendAboutTestMsg() {
+	msg := newMessage(
+		bot.Update.CallbackQuery.Message.Chat.ID,
+		getText("test"),
+		"html")
+
+	keyboard := tgbotapi.InlineKeyboardMarkup{}
+
+	var row []tgbotapi.InlineKeyboardButton
+	btn := tgbotapi.NewInlineKeyboardButtonData(getText("startTest") + " " + getEmoji("right-arrow"), "startTest")
+	row = append(row, btn)
+	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+
+	msg.ReplyMarkup = keyboard
+	bot.BotApi.Send(msg)
+}
+
+func (bot *BotApi) sendStartTest() {
+	bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.Message.MessageID})
+
+	if isExist(bot.Update.CallbackQuery.From.ID) {
+		bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{
+			bot.Update.CallbackQuery.Message.Chat.ID,
+			Chats[bot.Update.CallbackQuery.From.ID].LastMsgId,
+		})
+	}
+
+	if checkIfUserExists(bot.Update.CallbackQuery.From.ID) {
+		msg := newMessage(
+			bot.Update.CallbackQuery.Message.Chat.ID,
+			getText("recorded"),
+			"html")
+
+		bot.BotApi.Send(msg)
+	} else {
+		if !isExist(bot.Update.CallbackQuery.From.ID) {
+			Chats[bot.Update.CallbackQuery.From.ID] = &Quiz{
+				bot.Update.CallbackQuery.From.ID,
+				bot.Update.CallbackQuery.From.UserName,
+				bot.Update.CallbackQuery.Message.Chat.ID,
+				0,
+				0,
+				0,
+				getRandQuestions(),
+				time.Now().Unix(),
+				0,
+				[]Log{},
+			}
+		}
+
+		bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
+	}
 }
 
 func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {

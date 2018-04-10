@@ -9,7 +9,7 @@ var text = map[string]string {
 	"recorded": "<b>Ваш предедущий результат уже записан</b>",
 	"continueTest": "<b>Продолжайте викторину!</b>",
 	"confirmed": "<b>Ваш вопрос принят!</b>",
-	"score": "<b>Ваш результат: ",
+	"score": "<b>Ваш результат:</b>",
 }
 
 var emoji = map[string]string {
