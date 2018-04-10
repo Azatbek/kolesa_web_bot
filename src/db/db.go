@@ -27,9 +27,9 @@ type Settings struct {
 }
 
 type Questions struct {
-	Id         int    `db:"id"`
-	Complexity int    `db:"complexity"`
-	Text       string `db:"text"`
+	Id         int        `db:"id"`
+	Complexity int        `db:"complexity"`
+	Text       string     `db:"text"`
 	Variants   []Variants
 }
 
@@ -42,7 +42,9 @@ type Variants struct {
 
 type Quiz struct {
 	Id        int    `db:"id"`
-	User      string `db:"user"`
+	UserId    int    `db:"userId"`
+	UserName  string `db:"userName"`
+	ChatId    int64  `db:"chatId"`
 	Score     int    `db:"score"`
 	Log       string `db:"log"`
 	StartTime int64  `db:"start_time"`
@@ -164,9 +166,11 @@ func GetVariants(id int) ([]Variants, error) {
 
 func NewQuizRecord(quiz Quiz) error {
 	_, err := db.Exec(
-		"INSERT INTO `quiz` (`user`, `score`, `log`, `start_time`, `end_time`)"+
-			"VALUES (?, ?, ?, ?, ?)",
-		quiz.User,
+		"INSERT INTO `quiz` (`userId`, `userName`, `chatId`, `score`, `log`, `start_time`, `end_time`)"+
+			"VALUES (?, ?, ?, ?, ?, ?, ?)",
+		quiz.UserId,
+		quiz.UserName,
+		quiz.ChatId,
 		quiz.Score,
 		quiz.Log,
 		quiz.StartTime,
@@ -176,10 +180,10 @@ func NewQuizRecord(quiz Quiz) error {
 	return err
 }
 
-func GetUserFromQuiz(user string) (Quiz, error) {
-	result := Quiz{}
+func GetUserFromQuiz(userId int) (int, error) {
+	var result int
 
-	err := db.Get(&result, "SELECT * FROM quiz WHERE user = ?", user)
+	err := db.Get(&result, "SELECT userId FROM quiz WHERE userId = ?", userId)
 
 	if err != nil {
 		return result, err

@@ -66,7 +66,9 @@ func newQuizRecord(quiz *Quiz) error {
 	}
 
 	recordErr := db.NewQuizRecord(db.Quiz{
-		User: quiz.User,
+		UserId: quiz.UserId,
+		UserName: quiz.UserName,
+		ChatId: quiz.ChatId,
 		Score: quiz.Score,
 		Log: string(logs),
 		StartTime: quiz.StartTime,
@@ -76,8 +78,10 @@ func newQuizRecord(quiz *Quiz) error {
 	return recordErr
 }
 
-func checkIfUserExists(user string) bool {
-	_, err := db.GetUserFromQuiz(user)
+func checkIfUserExists(userId int) bool {
+	_, err := db.GetUserFromQuiz(userId)
+
+	fmt.Println(err)
 
 	if err != nil {
 		return false
