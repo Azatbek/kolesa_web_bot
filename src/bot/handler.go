@@ -89,3 +89,15 @@ func checkIfUserExists(userId int) bool {
 
 	return true
 }
+
+func checkIfAdminExists(userId int) bool {
+	_, err := db.GetAdmin(userId)
+
+	fmt.Println(err)
+
+	if err != nil {
+		return false
+	}
+
+	return true
+}

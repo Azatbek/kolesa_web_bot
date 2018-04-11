@@ -8,6 +8,14 @@ import (
 	"fmt"
 )
 
+type Admin struct {
+	Id        int    `db:"id"`
+	UserId    int    `db:"user_id"`
+	UserName  string `db:"user_name"`
+	FirstName string `db:"first_name"`
+	Activated int    `db:"activated"`
+}
+
 type Menu struct {
 	Id    int    `db:"id"`
 	Alias string `db:"alias"`
@@ -165,7 +173,7 @@ func GetVariants(id int) ([]Variants, error) {
 }
 
 func NewQuizRecord(quiz Quiz) error {
-	_, err := db.Exec(
+	val, err := db.Exec(
 		"INSERT INTO `quiz` (`userId`, `userName`, `chatId`, `score`, `log`, `start_time`, `end_time`)"+
 			"VALUES (?, ?, ?, ?, ?, ?, ?)",
 		quiz.UserId,
@@ -177,6 +185,10 @@ func NewQuizRecord(quiz Quiz) error {
 		quiz.EndTime,
 	)
 
+	fmt.Println()
+	fmt.Println(val.LastInsertId())
+	fmt.Println()
+
 	return err
 }
 
@@ -184,6 +196,18 @@ func GetUserFromQuiz(userId int) (int, error) {
 	var result int
 
 	err := db.Get(&result, "SELECT userId FROM quiz WHERE userId = ?", userId)
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, err
+}
+
+func GetAdmin(userId int) (int, error) {
+	var result int
+
+	err := db.Get(&result, "SELECT user_id FROM admin WHERE user_id = ?", userId)
 
 	if err != nil {
 		return result, err

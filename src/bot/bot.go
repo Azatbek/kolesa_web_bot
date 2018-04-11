@@ -8,14 +8,13 @@ import (
 	"../config"
 	"../db"
 	"time"
+	"./panel"
 )
 
-var (
-	asked    bool
-	variants []string
-)
-
+var variants []string
 var Chats = map[int]*Quiz{}
+var Asks  = map[int]bool{}
+var Panel = map[int64]*PanelSession{}
 
 type BotApi struct {
 	BotApi  *tgbotapi.BotAPI
@@ -36,6 +35,11 @@ type Quiz struct {
 type Log struct {
 	QuestionId int
 	AnswerId   int
+}
+
+type PanelSession struct {
+	UserId int
+	Live   bool
 }
 
 func (bot *BotApi) ListenForUpdates()  {
@@ -89,7 +93,7 @@ func (bot *BotApi) messageListener() {
 		bot.BotApi.Send(warningMessage)
 	}
 
-	if asked && bot.Update.Message.Text != "" {
+	if ifAsked(bot.Update.Message.From.ID) && bot.Update.Message.Text != "" {
 		channelId, err := strconv.ParseInt(config.Toml.Bot.ChannelId, 10, 64);
 
 		if err != nil {
@@ -107,7 +111,7 @@ func (bot *BotApi) messageListener() {
 
 		bot.BotApi.Send(confirmMsg)
 
-		asked = false
+		Asks[bot.Update.Message.From.ID] = false
 	}
 }
 
@@ -128,6 +132,31 @@ func (bot *BotApi) commandListener()  {
 
 		msg.ReplyMarkup = keyboard
 		bot.BotApi.Send(msg)
+	case "panel":
+		if _, ok := Panel[bot.Update.Message.Chat.ID]; ok && Panel[bot.Update.Message.Chat.ID].Live {
+			msg := newMessage(
+				bot.Update.Message.Chat.ID,
+				"<b>Ваша сессия уже активна, для справки наберите команду</b> /panel_help",
+				"html")
+
+			bot.BotApi.Send(msg)
+		} else {
+			if checkIfAdminExists(bot.Update.Message.From.ID) {
+				botPanel := panel.BotPanel{bot.BotApi, bot.Update}
+				botPanel.PanelInit()
+
+				Panel[bot.Update.Message.Chat.ID] = &PanelSession{bot.Update.Message.From.ID, true}
+
+				msg := newMessage(
+					bot.Update.Message.Chat.ID,
+					"<b>Вы вошли в панель управления ботом. Для справки наберите</b> /panel_help",
+					"html")
+
+				bot.BotApi.Send(msg)
+			} else {
+				fmt.Println(fmt.Sprintf("User - %d is trying to signin to panel", bot.Update.Message.From.ID))
+			}
+		}
 	}
 }
 
@@ -168,39 +197,48 @@ func (bot *BotApi) variantCallbackQuery() {
 		fmt.Println(err)
 	}
 
-	Chats[user].Log = append(Chats[user].Log, Log{QuestionId: Chats[user].Questions[Chats[user].Index].Id, AnswerId: id})
-	Chats[user].Score += Chats[user].Questions[Chats[user].Index].Variants[i].Value
+	if isExist(user) {
+		Chats[user].Log = append(Chats[user].Log, Log{QuestionId: Chats[user].Questions[Chats[user].Index].Id, AnswerId: id})
+		Chats[user].Score += Chats[user].Questions[Chats[user].Index].Variants[i].Value
 
-	if Chats[user].Index == 0 {
-		Chats[user].Score = Chats[user].Questions[Chats[user].Index].Variants[i].Value
-		Chats[user].Index += 1
+		if Chats[user].Index == 0 {
+			Chats[user].Score = Chats[user].Questions[Chats[user].Index].Variants[i].Value
+			Chats[user].Index += 1
 
-		bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.From.ID)
-	} else if Chats[user].Index == 5 {
-		Chats[user].EndTime = time.Now().Unix()
+			bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.From.ID)
+		} else if Chats[user].Index == 5 {
+			Chats[user].EndTime = time.Now().Unix()
 
-		scoreStr := strconv.Itoa(Chats[user].Score)
+			scoreStr := strconv.Itoa(Chats[user].Score)
 
-		Chats[callBackQuery.From.ID] = Chats[user]
+			Chats[callBackQuery.From.ID] = Chats[user]
 
-		if err != nil {
-			fmt.Println(err)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			if newQuizRecord(Chats[user]) == nil {
+				delete(Chats, callBackQuery.From.ID)
+			}
+
+			msg := newMessage(
+				callBackQuery.Message.Chat.ID,
+				getText("score") + scoreStr + " очков",
+				"html")
+
+			bot.BotApi.Send(msg)
+		} else {
+			Chats[user].Index += 1
+
+			bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.From.ID)
 		}
-
-		if newQuizRecord(Chats[user]) == nil {
-			delete(Chats, callBackQuery.From.ID)
-		}
-
+	} else {
 		msg := newMessage(
 			callBackQuery.Message.Chat.ID,
-			getText("score") + scoreStr + " очков",
+			getText("testError"),
 			"html")
 
 		bot.BotApi.Send(msg)
-	} else {
-		Chats[user].Index += 1
-
-		bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.From.ID)
 	}
 
 	bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{callBackQuery.Message.Chat.ID, callBackQuery.Message.MessageID})
@@ -219,7 +257,7 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
 		btn := tgbotapi.NewInlineKeyboardButtonData(variants[i], "variant_" + strconv.Itoa(i) + "_" + strconv.Itoa(item.Id))
 		row = append(row, btn)
 
-		questionText += variants[i] + ") " + item.Text + "\n"
+		questionText += "<b>" + variants[i] + ")</b> " + item.Text + "\n"
 	}
 
 	msg := newMessage(chatId,  questionText, "html")
@@ -255,7 +293,7 @@ func (bot *BotApi) sendAskSpeakerMsg() {
 
 	bot.BotApi.Send(msg)
 
-	asked = true
+	Asks[bot.Update.CallbackQuery.From.ID] = true
 }
 
 func (bot *BotApi) sendFaqMsg() {
@@ -345,6 +383,14 @@ func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageCon
 func isExist(userId int) bool {
 	if _, ok := Chats[userId]; ok {
 		return true
+	}
+
+	return false
+}
+
+func ifAsked(userId int) bool {
+	if ask, ok := Asks[userId]; ok {
+		return ask
 	}
 
 	return false
