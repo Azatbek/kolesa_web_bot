@@ -9,12 +9,19 @@ import (
 	"../db"
 	"time"
 	"./panel"
+	"./helper"
+	"regexp"
 )
 
 var variants []string
 var Chats = map[int]*Quiz{}
 var Asks  = map[int]bool{}
 var Panel = map[int64]*PanelSession{}
+
+type PanelSession struct {
+	UserId int
+	Live   bool
+}
 
 type BotApi struct {
 	BotApi  *tgbotapi.BotAPI
@@ -35,11 +42,6 @@ type Quiz struct {
 type Log struct {
 	QuestionId int
 	AnswerId   int
-}
-
-type PanelSession struct {
-	UserId int
-	Live   bool
 }
 
 func (bot *BotApi) ListenForUpdates()  {
@@ -85,9 +87,9 @@ func (bot *BotApi) callbackQueryListener()  {
 
 func (bot *BotApi) messageListener() {
 	if isExist(bot.Update.Message.From.ID) {
-		warningMessage := newMessage(
+		warningMessage := helper.NewMessage(
 			bot.Update.Message.Chat.ID,
-			getText("continueTest"),
+			helper.GetText("continueTest"),
 			"html")
 
 		bot.BotApi.Send(warningMessage)
@@ -104,9 +106,9 @@ func (bot *BotApi) messageListener() {
 
 		bot.BotApi.Send(msg)
 
-		confirmMsg := newMessage(
+		confirmMsg := helper.NewMessage(
 			bot.Update.Message.Chat.ID,
-			getText("confirmed"),
+			helper.GetText("confirmed"),
 			"html")
 
 		bot.BotApi.Send(confirmMsg)
@@ -116,46 +118,59 @@ func (bot *BotApi) messageListener() {
 }
 
 func (bot *BotApi) commandListener()  {
-	switch bot.Update.Message.Command() {
-	case "start", "menu":
-		msg := newMessage(bot.Update.Message.Chat.ID, "<b>Меню:</b>", "html")
+	botPanel := panel.BotPanel{bot.BotApi, bot.Update}
 
-		keyboard := tgbotapi.InlineKeyboardMarkup{}
-		menu := getMenu()
+	cmd := bot.Update.Message.Command()
 
-		for i, item := range menu {
-			var row []tgbotapi.InlineKeyboardButton
-			btn := tgbotapi.NewInlineKeyboardButtonData(item.Name + " " + menuEmojiList()[i], item.Alias)
-			row = append(row, btn)
-			keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
-		}
-
-		msg.ReplyMarkup = keyboard
-		bot.BotApi.Send(msg)
-	case "panel":
+	switch {
+	case regexp.MustCompile("^start$").MatchString(cmd), regexp.MustCompile("^menu$").MatchString(cmd):
+		bot.botStartMenu()
+	case regexp.MustCompile("^panel$").MatchString(cmd):
+		bot.panelStart()
+	case regexp.MustCompile("panel_").MatchString(cmd):
 		if _, ok := Panel[bot.Update.Message.Chat.ID]; ok && Panel[bot.Update.Message.Chat.ID].Live {
-			msg := newMessage(
+			botPanel.ListenPanelCmds()
+		}
+	}
+}
+
+func (bot *BotApi) botStartMenu() {
+	msg := helper.NewMessage(bot.Update.Message.Chat.ID, "<b>Меню:</b>", "html")
+
+	keyboard := tgbotapi.InlineKeyboardMarkup{}
+	menu := getMenu()
+
+	for i, item := range menu {
+		var row []tgbotapi.InlineKeyboardButton
+		btn := tgbotapi.NewInlineKeyboardButtonData(item.Name + " " + helper.MenuEmojiList()[i], item.Alias)
+		row = append(row, btn)
+		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+	}
+
+	msg.ReplyMarkup = keyboard
+	bot.BotApi.Send(msg)
+}
+
+func (bot *BotApi) panelStart() {
+	if _, ok := Panel[bot.Update.Message.Chat.ID]; ok && Panel[bot.Update.Message.Chat.ID].Live {
+		msg := helper.NewMessage(
+			bot.Update.Message.Chat.ID,
+			"<b>Ваша сессия уже активна, для справки наберите команду</b> /panel_help",
+			"html")
+
+		bot.BotApi.Send(msg)
+	} else {
+		if checkIfAdminExists(bot.Update.Message.From.ID) {
+			Panel[bot.Update.Message.Chat.ID] = &PanelSession{bot.Update.Message.From.ID, true}
+
+			msg := helper.NewMessage(
 				bot.Update.Message.Chat.ID,
-				"<b>Ваша сессия уже активна, для справки наберите команду</b> /panel_help",
+				"<b>Вы вошли в панель управления ботом. Для справки наберите</b> /panel_help",
 				"html")
 
 			bot.BotApi.Send(msg)
 		} else {
-			if checkIfAdminExists(bot.Update.Message.From.ID) {
-				botPanel := panel.BotPanel{bot.BotApi, bot.Update}
-				botPanel.PanelInit()
-
-				Panel[bot.Update.Message.Chat.ID] = &PanelSession{bot.Update.Message.From.ID, true}
-
-				msg := newMessage(
-					bot.Update.Message.Chat.ID,
-					"<b>Вы вошли в панель управления ботом. Для справки наберите</b> /panel_help",
-					"html")
-
-				bot.BotApi.Send(msg)
-			} else {
-				fmt.Println(fmt.Sprintf("User - %d is trying to signin to panel", bot.Update.Message.From.ID))
-			}
+			fmt.Println(fmt.Sprintf("User - %d is trying to signin to panel", bot.Update.Message.From.ID))
 		}
 	}
 }
@@ -178,7 +193,7 @@ func (bot *BotApi) faqCallbackQuery()  {
 
 	question := getQuestion(id)
 
-	msg := newMessage(
+	msg := helper.NewMessage(
 		bot.Update.CallbackQuery.Message.Chat.ID,
 		"<b>" + question.Question + "</b>" + "\n\n" + question.Answer,
 		"html")
@@ -221,9 +236,9 @@ func (bot *BotApi) variantCallbackQuery() {
 				delete(Chats, callBackQuery.From.ID)
 			}
 
-			msg := newMessage(
+			msg := helper.NewMessage(
 				callBackQuery.Message.Chat.ID,
-				getText("score") + scoreStr + " очков",
+				helper.GetText("score") + scoreStr + " очков",
 				"html")
 
 			bot.BotApi.Send(msg)
@@ -233,9 +248,9 @@ func (bot *BotApi) variantCallbackQuery() {
 			bot.newQuestionMessage(callBackQuery.Message.Chat.ID, callBackQuery.From.ID)
 		}
 	} else {
-		msg := newMessage(
+		msg := helper.NewMessage(
 			callBackQuery.Message.Chat.ID,
-			getText("testError"),
+			helper.GetText("testError"),
 			"html")
 
 		bot.BotApi.Send(msg)
@@ -260,7 +275,7 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
 		questionText += "<b>" + variants[i] + ")</b> " + item.Text + "\n"
 	}
 
-	msg := newMessage(chatId,  questionText, "html")
+	msg := helper.NewMessage(chatId,  questionText, "html")
 
 	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 
@@ -277,18 +292,18 @@ func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
 func (bot *BotApi) sendSchedule()  {
 	schedule := getSchedule()
 
-	msg := newMessage(
+	msg := helper.NewMessage(
 		bot.Update.CallbackQuery.Message.Chat.ID,
-		getText("schedule") + "\n\n" + schedule.Value,
+		helper.GetText("schedule") + "\n\n" + schedule.Value,
 		"html")
 
 	bot.BotApi.Send(msg)
 }
 
 func (bot *BotApi) sendAskSpeakerMsg() {
-	msg := newMessage(
+	msg := helper.NewMessage(
 		bot.Update.CallbackQuery.Message.Chat.ID,
-		getText("ask"),
+		helper.GetText("ask"),
 		"html")
 
 	bot.BotApi.Send(msg)
@@ -297,7 +312,7 @@ func (bot *BotApi) sendAskSpeakerMsg() {
 }
 
 func (bot *BotApi) sendFaqMsg() {
-	msg := newMessage(bot.Update.CallbackQuery.Message.Chat.ID, getText("faq"), "html")
+	msg := helper.NewMessage(bot.Update.CallbackQuery.Message.Chat.ID, helper.GetText("faq"), "html")
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 	questions := getFaq()
@@ -315,15 +330,15 @@ func (bot *BotApi) sendFaqMsg() {
 }
 
 func (bot *BotApi) sendAboutTestMsg() {
-	msg := newMessage(
+	msg := helper.NewMessage(
 		bot.Update.CallbackQuery.Message.Chat.ID,
-		getText("test"),
+		helper.GetText("test"),
 		"html")
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 
 	var row []tgbotapi.InlineKeyboardButton
-	btn := tgbotapi.NewInlineKeyboardButtonData(getText("startTest") + " " + getEmoji("right-arrow"), "startTest")
+	btn := tgbotapi.NewInlineKeyboardButtonData(helper.GetText("startTest") + " " + helper.GetEmoji("right-arrow"), "startTest")
 	row = append(row, btn)
 	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 
@@ -342,9 +357,9 @@ func (bot *BotApi) sendStartTest() {
 	}
 
 	if checkIfUserExists(bot.Update.CallbackQuery.From.ID) {
-		msg := newMessage(
+		msg := helper.NewMessage(
 			bot.Update.CallbackQuery.Message.Chat.ID,
-			getText("recorded"),
+			helper.GetText("recorded"),
 			"html")
 
 		bot.BotApi.Send(msg)
@@ -365,18 +380,6 @@ func (bot *BotApi) sendStartTest() {
 		}
 
 		bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
-	}
-}
-
-func newMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {
-	return tgbotapi.MessageConfig{
-		BaseChat: tgbotapi.BaseChat{
-			ChatID:           chatId,
-			ReplyToMessageID: 0,
-		},
-		Text: text,
-		ParseMode: parseMode,
-		DisableWebPagePreview: false,
 	}
 }
 

@@ -1,4 +1,6 @@
-package bot
+package helper
+
+import "github.com/go-telegram-bot-api/telegram-bot-api"
 
 var text = map[string]string {
 	"schedule": "<b>Расписание:</b>",
@@ -21,19 +23,31 @@ var emoji = map[string]string {
 	"right-arrow": "\xE2\x9E\xA1",
 }
 
-func getText(key string) string {
+func GetText(key string) string {
 	return text[key]
 }
 
-func getEmoji(key string) string {
+func GetEmoji(key string) string {
 	return emoji[key]
 }
 
-func menuEmojiList() []string {
+func MenuEmojiList() []string {
 	return []string{
-		getEmoji("calendar"),
-		getEmoji("100point"),
-		getEmoji("speech"),
-		getEmoji("question"),
+		GetEmoji("calendar"),
+		GetEmoji("100point"),
+		GetEmoji("speech"),
+		GetEmoji("question"),
+	}
+}
+
+func NewMessage(chatId int64, text string, parseMode string) tgbotapi.MessageConfig {
+	return tgbotapi.MessageConfig{
+		BaseChat: tgbotapi.BaseChat{
+			ChatID:           chatId,
+			ReplyToMessageID: 0,
+		},
+		Text: text,
+		ParseMode: parseMode,
+		DisableWebPagePreview: false,
 	}
 }
