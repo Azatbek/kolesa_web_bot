@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"./src/bot/panel"
 )
 
 func main() {
@@ -34,7 +35,7 @@ func main() {
 
     run()
 
-	bot := botPkg.BotApi{botApi, updates, tgbotapi.Update{}}
+	bot := botPkg.BotApi{botApi, updates, tgbotapi.Update{}, panel.BotPanel{}}
 	bot.ListenForUpdates()
 }
 

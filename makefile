@@ -8,10 +8,10 @@ $(CURDIR)/out/$(APP_NAME): $(CURDIR)/main.go
 
 dep-install:
 	go get github.com/BurntSushi/toml
-	go get github.com/codegangsta/cli
-	go get github.com/endeveit/go-snippets/cli
 	go get github.com/go-telegram-bot-api/telegram-bot-api
 	go get github.com/jmoiron/sqlx
+	go get github.com/go-sql-driver/mysql
+	go get github.com/tealeg/xlsx
 
 run:
 	go run $(CURDIR)/src/main.go

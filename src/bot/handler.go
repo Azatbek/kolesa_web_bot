@@ -46,16 +46,16 @@ func getSchedule() db.Settings {
 	return schedule
 }
 
-func getRandQuestions() ([]db.Questions) {
-	easy, err := db.GetRandomQuestionsByComplexity(3, 0)
-	medium, err := db.GetRandomQuestionsByComplexity(2, 1)
-	hard, err := db.GetRandomQuestionsByComplexity(1, 2)
+func getRandQuestions(category int) ([]db.Questions) {
+	easy, err := db.GetRandomQuestionsByComplexity(3, 0, category)
+	medium, err := db.GetRandomQuestionsByComplexity(2, 1, category)
+	hard, err := db.GetRandomQuestionsByComplexity(1, 2, category)
 
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	return append(append(easy, medium...), hard...)
+	return append(append(easy, hard...), medium...)
 }
 
 func newQuizRecord(quiz *Quiz) error {

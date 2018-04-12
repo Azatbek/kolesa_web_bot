@@ -38,6 +38,7 @@ type Questions struct {
 	Id         int        `db:"id"`
 	Complexity int        `db:"complexity"`
 	Text       string     `db:"text"`
+	Category   int        `db:"category"`
 	Variants   []Variants
 }
 
@@ -140,13 +141,14 @@ func GetSchedule () (Settings, error) {
 	return result, err
 }
 
-func GetRandomQuestionsByComplexity (limit int, complexity int) ([]Questions, error) {
+func GetRandomQuestionsByComplexity (limit int, complexity int, category int) ([]Questions, error) {
 	result := []Questions{}
 
 	err := db.Select(
 		&result,
-		"SELECT * FROM questions WHERE complexity = ? ORDER BY RAND() LIMIT 0,?",
+		"SELECT * FROM questions WHERE complexity = ? AND category = ? ORDER BY RAND() LIMIT 0,?",
 		complexity,
+		category,
 		limit)
 
 	if err != nil {

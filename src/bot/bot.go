@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+	"regexp"
 	"../config"
 	"../db"
-	"time"
 	"./panel"
 	"./helper"
-	"regexp"
 )
 
 var variants []string
@@ -24,9 +24,10 @@ type PanelSession struct {
 }
 
 type BotApi struct {
-	BotApi  *tgbotapi.BotAPI
-	Updates tgbotapi.UpdatesChannel
-	Update  tgbotapi.Update
+	BotApi   *tgbotapi.BotAPI
+	Updates  tgbotapi.UpdatesChannel
+	Update   tgbotapi.Update
+	BotPanel panel.BotPanel
 }
 
 type Quiz struct {
@@ -49,6 +50,7 @@ func (bot *BotApi) ListenForUpdates()  {
 
 	for update := range bot.Updates {
 		bot.Update = update
+		bot.BotPanel = panel.BotPanel{bot.BotApi, bot.Update}
 
 		if update.Message != nil {
 			bot.messageUpdateListener()
@@ -86,6 +88,10 @@ func (bot *BotApi) callbackQueryListener()  {
 }
 
 func (bot *BotApi) messageListener() {
+	if _, ok := Panel[bot.Update.Message.Chat.ID]; ok && Panel[bot.Update.Message.Chat.ID].Live && bot.BotPanel.IsMessaging() {
+		bot.BotPanel.ListenPanelMsgs()
+	}
+
 	if isExist(bot.Update.Message.From.ID) {
 		warningMessage := helper.NewMessage(
 			bot.Update.Message.Chat.ID,
@@ -118,8 +124,6 @@ func (bot *BotApi) messageListener() {
 }
 
 func (bot *BotApi) commandListener()  {
-	botPanel := panel.BotPanel{bot.BotApi, bot.Update}
-
 	cmd := bot.Update.Message.Command()
 
 	switch {
@@ -129,7 +133,7 @@ func (bot *BotApi) commandListener()  {
 		bot.panelStart()
 	case regexp.MustCompile("panel_").MatchString(cmd):
 		if _, ok := Panel[bot.Update.Message.Chat.ID]; ok && Panel[bot.Update.Message.Chat.ID].Live {
-			botPanel.ListenPanelCmds()
+			bot.BotPanel.ListenPanelCmds()
 		}
 	}
 }
@@ -180,6 +184,8 @@ func (bot *BotApi) dynamicCallbackQuery()  {
 		bot.faqCallbackQuery()
 	} else if strings.Contains(bot.Update.CallbackQuery.Data, "variant_") {
 		bot.variantCallbackQuery()
+	} else if strings.Contains(bot.Update.CallbackQuery.Data, "category_") {
+		bot.categoryCallbackQuery()
 	}
 }
 
@@ -260,13 +266,15 @@ func (bot *BotApi) variantCallbackQuery() {
 }
 
 func (bot *BotApi) newQuestionMessage(chatId int64, userId int) {
-	var err error
+	var (
+		err error
+		row []tgbotapi.InlineKeyboardButton
+	)
 
 	indexStr := strconv.Itoa(Chats[userId].Index + 1)
 	questionText := "<b>" + indexStr + ")</b> " + Chats[userId].Questions[Chats[userId].Index].Text + "\n\n"
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
-	var row []tgbotapi.InlineKeyboardButton
 
 	for i, item := range Chats[userId].Questions[Chats[userId].Index].Variants {
 		btn := tgbotapi.NewInlineKeyboardButtonData(variants[i], "variant_" + strconv.Itoa(i) + "_" + strconv.Itoa(item.Id))
@@ -330,14 +338,14 @@ func (bot *BotApi) sendFaqMsg() {
 }
 
 func (bot *BotApi) sendAboutTestMsg() {
+	var row []tgbotapi.InlineKeyboardButton
+
 	msg := helper.NewMessage(
 		bot.Update.CallbackQuery.Message.Chat.ID,
 		helper.GetText("test"),
 		"html")
 
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
-
-	var row []tgbotapi.InlineKeyboardButton
 	btn := tgbotapi.NewInlineKeyboardButtonData(helper.GetText("startTest") + " " + helper.GetEmoji("right-arrow"), "startTest")
 	row = append(row, btn)
 	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
@@ -364,23 +372,57 @@ func (bot *BotApi) sendStartTest() {
 
 		bot.BotApi.Send(msg)
 	} else {
-		if !isExist(bot.Update.CallbackQuery.From.ID) {
-			Chats[bot.Update.CallbackQuery.From.ID] = &Quiz{
-				bot.Update.CallbackQuery.From.ID,
-				bot.Update.CallbackQuery.From.UserName,
-				bot.Update.CallbackQuery.Message.Chat.ID,
-				0,
-				0,
-				0,
-				getRandQuestions(),
-				time.Now().Unix(),
-				0,
-				[]Log{},
-			}
+		var row []tgbotapi.InlineKeyboardButton
+
+		categories   := []string{1: "PHP", 2: "JavaScript"}
+		text := "<b>Выберите категорию по которой хотите пройти викторину:</b>\n"
+
+		keyboard := tgbotapi.InlineKeyboardMarkup{}
+
+		for i := range categories {
+			btn := tgbotapi.NewInlineKeyboardButtonData(categories[i], "category_" + strconv.Itoa(i))
+			row = append(row, btn)
 		}
 
-		bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
+		msg := helper.NewMessage(bot.Update.CallbackQuery.Message.Chat.ID,  text, "html")
+
+		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
+
+		msg.ReplyMarkup = keyboard
+		bot.BotApi.Send(msg)
 	}
+}
+
+func (bot *BotApi) categoryCallbackQuery() {
+	bot.BotApi.DeleteMessage(tgbotapi.DeleteMessageConfig{bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.Message.MessageID})
+
+	s := strings.Split(bot.Update.CallbackQuery.Data, "_")
+	id, err := strconv.Atoi(s[1])
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if !isExist(bot.Update.CallbackQuery.From.ID) {
+		Chats[bot.Update.CallbackQuery.From.ID] = &Quiz{
+			bot.Update.CallbackQuery.From.ID,
+			bot.Update.CallbackQuery.From.UserName,
+			bot.Update.CallbackQuery.Message.Chat.ID,
+			0,
+			0,
+			0,
+			getRandQuestions(id),
+			time.Now().Unix(),
+			0,
+			[]Log{},
+		}
+	}
+
+	fmt.Println()
+	fmt.Println(Chats)
+	fmt.Println()
+
+	bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
 }
 
 func isExist(userId int) bool {
