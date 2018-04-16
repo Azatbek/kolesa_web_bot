@@ -230,8 +230,6 @@ func (bot *BotApi) variantCallbackQuery() {
 		} else if Chats[user].Index == 5 {
 			Chats[user].EndTime = time.Now().Unix()
 
-			scoreStr := strconv.Itoa(Chats[user].Score)
-
 			Chats[callBackQuery.From.ID] = Chats[user]
 
 			if err != nil {
@@ -244,7 +242,7 @@ func (bot *BotApi) variantCallbackQuery() {
 
 			msg := helper.NewMessage(
 				callBackQuery.Message.Chat.ID,
-				helper.GetText("score") + scoreStr + " очков",
+				helper.GetText("scoreTest"),
 				"html")
 
 			bot.BotApi.Send(msg)
@@ -375,7 +373,6 @@ func (bot *BotApi) sendStartTest() {
 		var row []tgbotapi.InlineKeyboardButton
 
 		categories   := []string{1: "PHP", 2: "JavaScript"}
-		text := "<b>Выберите категорию по которой хотите пройти викторину:</b>\n"
 
 		keyboard := tgbotapi.InlineKeyboardMarkup{}
 
@@ -384,7 +381,7 @@ func (bot *BotApi) sendStartTest() {
 			row = append(row, btn)
 		}
 
-		msg := helper.NewMessage(bot.Update.CallbackQuery.Message.Chat.ID,  text, "html")
+		msg := helper.NewMessage(bot.Update.CallbackQuery.Message.Chat.ID, helper.GetText("category"), "html")
 
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 
@@ -417,10 +414,6 @@ func (bot *BotApi) categoryCallbackQuery() {
 			[]Log{},
 		}
 	}
-
-	fmt.Println()
-	fmt.Println(Chats)
-	fmt.Println()
 
 	bot.newQuestionMessage(bot.Update.CallbackQuery.Message.Chat.ID, bot.Update.CallbackQuery.From.ID)
 }

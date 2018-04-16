@@ -175,7 +175,7 @@ func GetVariants(id int) ([]Variants, error) {
 }
 
 func NewQuizRecord(quiz Quiz) error {
-	val, err := db.Exec(
+	_, err := db.Exec(
 		"INSERT INTO `quiz` (`userId`, `userName`, `chatId`, `score`, `log`, `start_time`, `end_time`)"+
 			"VALUES (?, ?, ?, ?, ?, ?, ?)",
 		quiz.UserId,
@@ -187,11 +187,38 @@ func NewQuizRecord(quiz Quiz) error {
 		quiz.EndTime,
 	)
 
-	fmt.Println()
-	fmt.Println(val.LastInsertId())
-	fmt.Println()
-
 	return err
+}
+
+func AddQuestionWithVariants(question Questions) {
+	val, err := db.Exec(
+		"INSERT INTO `questions` (`complexity`, `text`, `category`)"+
+			"VALUES (?, ?, ?)",
+		question.Complexity,
+		question.Text,
+		question.Category,
+	)
+
+	if err == nil {
+		for _, variant := range question.Variants {
+			id, err := val.LastInsertId()
+
+			if err != nil {
+				fmt.Println("Error when inserting variant for question: " + question.Text)
+			}
+			_, insertErr := db.Exec(
+				"INSERT INTO `variants` (`question_id`, `text`, `value`)"+
+					"VALUES (?, ?, ?)",
+				id,
+				variant.Text,
+				variant.Value,
+			)
+
+			if insertErr != nil {
+				continue
+			}
+		}
+	}
 }
 
 func GetUserFromQuiz(userId int) (int, error) {

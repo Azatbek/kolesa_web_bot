@@ -23,10 +23,10 @@ func main() {
     botApi, err := tgbotapi.NewBotAPI(config.Toml.Bot.Token)
 
     if err != nil {
-		fmt.Println("Bot connection failed")
+		fmt.Println(err)
     }
 
-    botApi.Debug = true
+    //botApi.Debug = true
 
     u := tgbotapi.NewUpdate(0)
     u.Timeout = config.Toml.Bot.Timeout
@@ -42,5 +42,6 @@ func main() {
 func run()  {
 	http.HandleFunc("/", handler.MainHandler)
 	http.HandleFunc("/health", handler.HealthHandler)
+	http.HandleFunc("/upload", handler.FileUploadHandler)
 	go http.ListenAndServe(config.Toml.Http.Port, nil)
 }
