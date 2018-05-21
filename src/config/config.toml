@@ -2,13 +2,13 @@
 Port = ":8084"
 
 [Mysql]
-Host     = "10.9.242.35"
+Host     = ""
 Port     = 3306
-User     = "aldev"
-Password = "aldev123123"
-Database = "kolesa_web_bot"
+User     = ""
+Password = "a"
+Database = ""
 
 [Bot]
-Token     = "557885683:AAE3At2B709oA0aHdwBY_zHnd1PlkP75rWY"
+Token     = ""
 Timeout   = 60
-ChannelId = "-1001215668907"
+ChannelId = ""
